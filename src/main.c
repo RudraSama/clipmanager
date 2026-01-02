@@ -11,38 +11,9 @@
  * */
 #define CHUNK 4096  // 4096 * 4 = 16384
 
-void print_all(Display *d, Window w, Atom target, Atom property) {
-	Atom clip = XInternAtom(d, "CLIPBOARD", True);
-	XConvertSelection(d, clip, target, property, w, CurrentTime);
-
-	XEvent ev;
-	while (1) {
-		XNextEvent(d, &ev);
-		if (ev.type == SelectionNotify) {
-			printf("something copied with property - %s \n",
-			       XGetAtomName(d, ev.xselection.target));
-			if (ev.xselection.property) {
-				Atom type;
-				int fmt;
-				unsigned long nitems, bytes_rem;
-				unsigned char *data;
-
-
-				XGetWindowProperty(d, w, property, 0, ~0, False,
-				                   AnyPropertyType, &type, &fmt, &nitems,
-				                   &bytes_rem, &data);
-				if (data) {
-					printf("Data - %s\n", data);
-				}
-				XFree(data);
-			}
-			break;
-		}
-	}
-}
 
 void read_clipboard_data(Display *d, Window w, Atom clip, Atom property,
-                         Atom target, Node **head, FILE *file) {
+                         Atom target) {
 	XConvertSelection(d, clip, target, property, w, CurrentTime);
 
 	Atom type;
@@ -70,9 +41,12 @@ void read_clipboard_data(Display *d, Window w, Atom clip, Atom property,
 				                   &type, &fmt, &nitems, &bytes_rem, &data);
 				if (type == XInternAtom(d, "INCR", True)) {
 					// Deleting Property to Initialize INCR stream
+					// write_data_init
 					XDeleteProperty(d, w, property);
 					INCR = 1;
 					continue;
+				} else {
+					// write_data_init
 				}
 			}
 
@@ -84,8 +58,8 @@ void read_clipboard_data(Display *d, Window w, Atom clip, Atom property,
 				offset++;
 				total_bytes += nitems;
 				if (data) {
-					fwrite(data, sizeof(char), nitems, file);
 					hash_update(&m, (const char *)data);
+					// printf("%s\n", data);
 					XFree(data);
 				}
 
@@ -121,7 +95,6 @@ void print_supported_targets(Display *d, Window w) {
 					Atom *supported = (Atom *)data;
 					for (int i = 0; i < nitems; i++) {
 						char *name = XGetAtomName(d, supported[i]);
-						// print_all(d, w, supported[i], property);
 						printf("%s\n", name);
 						free(name);
 					}
@@ -133,8 +106,7 @@ void print_supported_targets(Display *d, Window w) {
 	}
 }
 
-void send_selection_notify_event(Display *d, Window w, XEvent *ev, int count,
-                                 Node *head) {
+void send_selection_notify_event(Display *d, Window w, XEvent *ev, int count) {
 	XSelectionRequestEvent *k = (XSelectionRequestEvent *)ev;
 
 	printf("Target - %s\n", XGetAtomName(d, k->target));
@@ -175,20 +147,20 @@ void send_selection_notify_event(Display *d, Window w, XEvent *ev, int count,
 		                PropModeReplace, (unsigned char *)data, 16);
 		res.xselection.property = k->property;
 	} else if (k->target == utf8 || k->target == string) {
-		Node node;
-		if (head) {
-			while (head->next) {
-				head = head->next;
-			}
-			node = *head;
-		} else {
-			node.next = NULL;
-			node.data = "HELLO";
-			node.total_size = 5;
-		}
-		XChangeProperty(d, k->requestor, k->property, k->target, 8,
-		                PropModeReplace, (unsigned char *)node.data,
-		                node.total_size);
+		//		Node node;
+		//		if (head) {
+		//			while (head->next) {
+		//				head = head->next;
+		//			}
+		//			node = *head;
+		//		} else {
+		//			node.next = NULL;
+		//			node.data = "HELLO";
+		//			node.total_size = 5;
+		//		}
+		//		XChangeProperty(d, k->requestor, k->property, k->target, 8,
+		//		                PropModeReplace, (unsigned char *)node.data,
+		//		                node.total_size);
 		res.xselection.property = k->property;
 	} else {
 		printf("I don't know man\n");
@@ -214,20 +186,10 @@ int main() {
 	XSelectInput(d, w, KeyPressMask | KeyReleaseMask | PropertyChangeMask);
 	XMapWindow(d, w);
 
-	Node *head = NULL;
-
 	Atom clip = XInternAtom(d, "CLIPBOARD", True);
 
 	Atom target = XInternAtom(d, "UTF8_STRING", False);
 	Atom property = XInternAtom(d, "MY_PROP", False);
-
-	FILE *file;
-	file = fopen("clipboard.txt", "rb+");
-	if (!file) {
-		system("touch clipboard.txt");
-	}
-	file = fopen("clipboard.txt", "r+");
-	if (!file) goto close_window;
 
 	XEvent ev;
 	int quit = 0;
@@ -241,12 +203,10 @@ int main() {
 					quit = 1;
 					break;
 				case 28:
-					traverse(head);
 					break;
 				case 33:
 					// print_supported_targets(d, w);
-					read_clipboard_data(d, w, clip, property, target, &head,
-					                    file);
+					read_clipboard_data(d, w, clip, property, target);
 					break;
 				default:
 					printf("Keypressed %d\n", kv->keycode);
@@ -257,11 +217,10 @@ int main() {
 			printf("Owner Changed\n");
 		}
 		if (ev.type == SelectionRequest) {
-			send_selection_notify_event(d, w, &ev, count, head);
+			send_selection_notify_event(d, w, &ev, count);
 		}
 	}
 
-	fclose(file);
 
 close_window:
 	XDestroyWindow(d, w);

@@ -5,6 +5,7 @@
 
 struct Node {
 	char *data;
+	uint64_t offset;
 	uint32_t hash;
 	unsigned long data_size;
 	struct Node *next;
@@ -17,7 +18,12 @@ typedef struct {
 	Node *top;
 } Stack;
 
-void push(Stack **stack, const char *data, unsigned long data_size);
+Stack *stack_init();
+
+void stack_deinit(Stack **stack);
+
+void push(Stack **stack, const char *data, uint64_t offset, uint32_t hash,
+          unsigned long data_size);
 
 void pop(Stack **stack);
 

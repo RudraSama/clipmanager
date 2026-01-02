@@ -3,3 +3,5 @@
 !include/
 !Makefile
 !.gitignore
+.clang-format
+compile_flags.txt
