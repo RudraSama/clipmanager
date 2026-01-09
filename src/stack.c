@@ -1,4 +1,6 @@
+#include <clip_metadata.h>
 #include <stack.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,29 +18,39 @@ void stack_deinit(Stack **stack) {
 	Node *curr = (*stack)->bottom;
 	while (curr != NULL) {
 		Node *temp = curr->next;
-		free(curr->data);
+		free(curr->clip.data);
 		free(curr);
 		curr = temp;
 	}
 	free(*stack);
 }
 
-void push(Stack **stack, const char *data, uint64_t offset, uint32_t hash,
-          unsigned long data_size) {
+void push(Stack **stack, const ClipMetadata_t *clip) {
 	if (*stack == NULL) return;
 
 	Node *new_node = malloc(sizeof(Node));
 	if (!new_node) return;
 	new_node->next = NULL;
-	new_node->hash = hash;
-	new_node->offset = offset;
-	new_node->data_size = data_size;
-	new_node->data = strdup(data);
+	new_node->clip.offset = clip->offset;
+	new_node->clip.timestamp = clip->timestamp;
+	new_node->clip.hash = clip->hash;
+	new_node->clip.data_size = clip->data_size;
+	new_node->clip.new_clip = clip->new_clip;
+	new_node->clip.is_INCR = clip->is_INCR;
+	new_node->clip.data = NULL;
 
-	if (new_node->data == NULL) {
-		free(new_node);
-		return;
+	// If no data, still push to stack for handling INCR
+	if (clip->data != NULL) {
+		new_node->clip.data = malloc(clip->data_size + 1);
+		if (new_node->clip.data == NULL) {
+			free(new_node);
+			return;
+		}
+
+		memcpy(new_node->clip.data, clip->data, clip->data_size);
+		new_node->clip.data[clip->data_size] = '\0';
 	}
+
 
 	if ((*stack)->bottom == NULL || (*stack)->top == NULL) {
 		(*stack)->top = new_node;
@@ -68,10 +80,12 @@ void pop(Stack **stack) {
 void traverse(Stack **stack) {
 	Node *curr = (*stack)->bottom;
 	while (curr) {
-		printf("%s\n", curr->data);
-		printf("%lx\n", curr->offset);
-		printf("%x\n", curr->hash);
-		printf("%x\n", curr->data_size);
+		printf("offset=%lx\n", curr->clip.offset);
+		printf("timestamp=%lld\n", curr->clip.timestamp);
+		printf("hash=%x\n", curr->clip.hash);
+		printf("data_size=%lu\n", curr->clip.data_size);
+		printf("is_INCR=%d\n", curr->clip.is_INCR);
+		printf("new_clip=%d\n", curr->clip.new_clip);
 		printf("\n");
 		curr = curr->next;
 	}
