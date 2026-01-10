@@ -1,9 +1,9 @@
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
 #include <clip_metadata.h>
+#include <clipqueue.h>
 #include <file_manager.h>
 #include <murmur_hash.h>
-#include <stack.h>
 #include <stdlib.h>
 #include <time_utils.h>
 #include <x11_clipboard.h>
@@ -18,7 +18,7 @@ void become_clipboard_owner(Display *d, Window w) {
 }
 
 void read_clipboard_data(Display *d, Window w, Atom clip, Atom property,
-                         Atom target, File_t *f, Stack **stack) {
+                         Atom target, File_t *f, ClipQueue **clipqueue) {
 	XConvertSelection(d, clip, target, property, w, CurrentTime);
 
 	Atom type;
@@ -75,10 +75,10 @@ void read_clipboard_data(Display *d, Window w, Atom clip, Atom property,
 					if (INCR) {
 						write_data(f, data, items_bytes);
 					} else {
-						if (buffer == NULL) {
+						if (!buffer) {
 							size_t total_size = bytes_rem + items_bytes;
 							buffer = malloc(total_size);
-							if (buffer == NULL) {
+							if (!buffer) {
 								XFree(data);
 								return;
 							}
@@ -100,23 +100,20 @@ void read_clipboard_data(Display *d, Window w, Atom clip, Atom property,
 
 	hash_finalize(&m);
 
-	ClipMetadata_t c;
-	c.data = buffer;
-	c.timestamp = get_timestamp();
-	c.hash = m.hash;
-	c.data_size = total_bytes;
-	c.offset = data_offset;
-	c.new_clip = true;
-	c.is_INCR = INCR;
-	push(stack, &c);
+	ClipMetadata_t c = {.data = buffer,
+	                    .timestamp = get_timestamp(),
+	                    .hash = m.hash,
+	                    .data_size = total_bytes,
+	                    .offset = data_offset,
+	                    .new_clip = true,
+	                    .is_INCR = INCR};
+	add(clipqueue, &c);
 
 	if (INCR) {
 		finish_write_data(f);
-		Index_t index;
-		index.offset = (uint32_t)c.offset;
-		index.timestamp = c.timestamp;
-		index.data_size = c.data_size;
-		index.hash = m.hash;
+		Index_t index = {index.offset = (uint32_t)c.offset,
+		                 index.timestamp = c.timestamp,
+		                 index.data_size = c.data_size, index.hash = m.hash};
 		write_index(f, &index);
 	}
 

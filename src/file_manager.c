@@ -1,6 +1,6 @@
 #include <clip_metadata.h>
+#include <clipqueue.h>
 #include <file_manager.h>
-#include <stack.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -61,19 +61,18 @@ bool write_index(File_t *f, const Index_t *index) {
 	return true;
 }
 
-bool read_indexs(File_t *f, Stack **stack) {
-	if (stack == NULL) return false;
+bool read_indexs(File_t *f, ClipQueue **clipqueue) {
+	if (!clipqueue) return false;
 	if (!(f->index_file) || !(f->data_file)) return false;
 
 	fseek(f->index_file, 0, SEEK_SET);
 
 	int c = 0;
 	c = fgetc(f->index_file);
+
 	while (c != EOF) {
-		Index_t index;
-		index.offset = 0;
-		index.hash = 0;
-		index.data_size = 0;
+		Index_t index = {
+		    .offset = 0, .timestamp = 0, .hash = 0, .data_size = 0};
 
 		for (uint8_t i = 0; i < 8; i++) {
 			if (c == EOF) return false;
@@ -105,18 +104,17 @@ bool read_indexs(File_t *f, Stack **stack) {
 		bool is_incr;
 		if (!is_INCR(f, index.offset, &is_incr)) return false;
 
-		ClipMetadata_t clip;
-		clip.data_size = index.data_size;
-		clip.offset = index.offset;
-		clip.hash = index.hash;
-		clip.data = NULL;
-		clip.new_clip = false;
-		clip.is_INCR = is_incr;
+		ClipMetadata_t clip = {.data_size = index.data_size,
+		                       .offset = index.offset,
+		                       .timestamp = index.timestamp,
+		                       .hash = index.hash,
+		                       .data = NULL,
+		                       .new_clip = false,
+		                       .is_INCR = is_incr};
 
 		if (!is_incr) {
 			unsigned char *data = malloc(sizeof(char) * index.data_size);
-			if (data == NULL) return false;
-
+			if (!data) return false;
 
 			if (!read_data(f, data, index.offset, index.data_size)) {
 				free(data);
@@ -124,13 +122,12 @@ bool read_indexs(File_t *f, Stack **stack) {
 			}
 
 			clip.data = data;
-			push(stack, &clip);
+			fill_clipqueue(clipqueue, &clip);
 			free(data);
 		} else {
-			push(stack, &clip);
+			fill_clipqueue(clipqueue, &clip);
 		}
 	}
-
 	return true;
 }
 
@@ -187,7 +184,7 @@ bool is_INCR(File_t *f, uint64_t offset, bool *is_incr) {
 }
 
 bool read_data(File_t *f, unsigned char *data, uint64_t offset, uint32_t size) {
-	if (!(f->index_file) || !(f->data_file) || (data == NULL)) return false;
+	if (!(f->index_file) || !(f->data_file) || !data) return false;
 
 	/* fseeko is UNIX standard. We are using here so that we can use our
 	 * uint64_t offset. fseek only supports long type.  */

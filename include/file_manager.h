@@ -1,7 +1,7 @@
 #ifndef FILE_MANAGER_H_
 #define FILE_MANAGER_H_
 
-#include <stack.h>
+#include <clipqueue.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -56,7 +56,7 @@ void file_deinit(File_t *f);
 
 bool write_index(File_t *f, const Index_t *index);
 
-bool read_indexs(File_t *f, Stack **stack);
+bool read_indexs(File_t *f, ClipQueue **clipqueue);
 
 bool init_write_data(File_t *f, uint8_t is_incr, uint64_t *offset);
 

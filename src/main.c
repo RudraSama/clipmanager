@@ -9,7 +9,7 @@
 
 int main() {
 	Display *d = XOpenDisplay(NULL);
-	if (d == NULL) return 1;
+	if (!d) return 1;
 	Window w =
 	    XCreateSimpleWindow(d, DefaultRootWindow(d), 0, 0, 100, 100, 0, 0, 0);
 	XSelectInput(d, w, KeyPressMask | KeyReleaseMask | PropertyChangeMask);
@@ -25,12 +25,12 @@ int main() {
 		goto close_window;
 	}
 
-	Stack *stack = stack_init();
-	if (stack == NULL) {
+	ClipQueue *clipqueue = clipqueue_init();
+	if (!clipqueue) {
 		goto close_file;
 	}
 
-	read_indexs(&f, &stack);
+	read_indexs(&f, &clipqueue);
 
 
 	XEvent ev;
@@ -45,12 +45,12 @@ int main() {
 					quit = 1;
 					break;
 				case 28:
-					traverse(&stack);
+					traverse(&clipqueue);
 					break;
 				case 33:
 					// print_supported_targets(d, w);
 					read_clipboard_data(d, w, clip, property, target, &f,
-					                    &stack);
+					                    &clipqueue);
 					break;
 				default:
 					printf("Keypressed %d\n", kv->keycode);
@@ -65,7 +65,7 @@ int main() {
 		}
 	}
 
-	stack_deinit(&stack);
+	clipqueue_deinit(&clipqueue);
 
 close_file:
 	file_deinit(&f);
